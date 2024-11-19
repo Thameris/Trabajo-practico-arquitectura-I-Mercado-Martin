@@ -1,38 +1,44 @@
 .data
 
-#podria incorporar un "presione enter para continuar"
+#TAREAS PENDIENTES:
+
+#1) Buscar todas las llamadas a funcion dentro de otra funcion y en vez de 
+#preservar $ra en un registro, preservarlo en el stack para asegurarme
+#de que no se pierde porque alguna funcion modifique el registro
 
 #variables creadas por mi:
 
-numero_categorias: .word 0
+numero_categorias: 	.word 0
 
-numero_animales: .word 0
+numero_animales: 	.word 0
 
-opcion_menu_input: .word 0
+opcion_menu_input: 	.word 0
 
 mensaje_operacion: 	.asciiz "Se ha seleccionado la operacion: "
 
 mensaje_error_101: 	.asciiz "Error 101: opcion seleccionada incorrecta.\n\n"
 mensaje_error_201: 	.asciiz "Error 201: no hay categorias cargadas.\n\n"
 mensaje_error_202: 	.asciiz "Error 202: solo hay 1 categoria cargada.\n\n"
-mensaje_error_301: 	.asciiz "Error 301: no hay categorias cargadas\nNo se pudo mostrar la lista de categorias.\n\n"
-mensaje_error_401: 	.asciiz "Error 401: no hay categorias cargadas.\nNo se pudo borrar una categoria.\n\n"
-mensaje_error_501: 	.asciiz "Error 501: no hay categorias cargadas.\nNo se pudo anexar el objeto.\n\n"
-mensaje_error_601: 	.asciiz "Error 601: no hay categorias cargadas\nNo se pudieron listar los objetos.\n\n"
-mensaje_error_602: 	.asciiz "Error 602: no hay objetos cargados.\nNo se pudieron listar los objetos.\n\n"
+mensaje_error_301: 	.asciiz "Error 301: no hay categorias cargadas. No se pudo mostrar la lista de categorias.\n\n"
+mensaje_error_401: 	.asciiz "Error 401: no hay categorias cargadas. No se pudo borrar una categoria.\n\n"
+mensaje_error_501: 	.asciiz "Error 501: no hay categorias cargadas. No se pudo anexar el objeto.\n\n"
+mensaje_error_601: 	.asciiz "Error 601: no hay categorias cargadas. No se pudieron listar los objetos.\n\n"
+mensaje_error_602: 	.asciiz "Error 602: no hay objetos cargados. No se pudieron listar los objetos.\n\n"
 mensaje_error_notfound: .asciiz "Error: objeto Not Found.\nNo se pudo borrar el objeto.\n\n"
-mensaje_error_701: 	.asciiz "Error 701: no hay categorias cargadas.\nNo se pudo borrar el objeto.\n\n"
+mensaje_error_701: 	.asciiz "Error 701: no hay categorias cargadas. No se pudo borrar el objeto.\n\n"
 
-mensaje_test_1: .asciiz "1\n\n"
-mensaje_test_2: .asciiz "2\n\n"
-mensaje_test_3: .asciiz "3\n\n"
-mensaje_test_4: .asciiz "4\n\n"
-mensaje_test_5: .asciiz "5\n\n"
-mensaje_test_6: .asciiz "6\n\n"
-mensaje_test_7: .asciiz "7\n\n"
-mensaje_test_8: .asciiz "8\n\n"
+mensaje_test_1: 	.asciiz "1\n\n"
+mensaje_test_2: 	.asciiz "2\n\n"
+mensaje_test_3: 	.asciiz "3\n\n"
+mensaje_test_4: 	.asciiz "4\n\n"
+mensaje_test_5: 	.asciiz "5\n\n"
+mensaje_test_6: 	.asciiz "6\n\n"
+mensaje_test_7: 	.asciiz "7\n\n"
+mensaje_test_8: 	.asciiz "8\n\n"
 
-mensaje_pausa: .asciiz "Presione enter para continuar..."
+mensaje_pausa: 		.asciiz "Presione enter para continuar..."
+
+mensaje_lista_categorias: .asciiz "Lista de las categorias cargadas:\n\n"
 
 #variables dadas:
 
@@ -296,14 +302,58 @@ prevcategory:
 
 listcategories:
 
-li $v0, 4
-la $a0, mensaje_operacion
-syscall
+	li $v0, 4
+	la $a0, mensaje_operacion		#printf operacion selecionada
+	syscall
 
-la $a0, mensaje_test_4
-syscall
+	la $a0, mensaje_test_4			#printf num op selec
+	syscall
 
-jr $ra
+	lw $t0, cclist		#cargo el "primer" nodo de la lista
+	lw $t1, cclist
+	
+	beqz $t0, error_301
+	
+	li $v0, 4
+	la $a0, mensaje_lista_categorias	#printf Lista categorias cargadas:
+	syscall
+	
+	loop_lista:
+	
+		lw $a0, 8($t1)		#cargo el nombre de la categoria guardado en el nodo
+		syscall			#printf nombre cat en el nodo actual
+	
+		la $a0, return		
+		syscall			#printf \n
+	
+		lw $t1, 12($t1)		#cargo en $t1 la dir del siguiente nodo
+		
+		beqz $t1, fin_list_categories	#si el siguiente es null, es porque solo hay 1 categoria, en cuyo caso rompo el loop
+		bne $t0, $t1, loop_lista	#cuando vuelvo al nodo del que empece, rompo el loop
+
+	fin_list_categories:
+
+	move $t0, $ra
+	
+	jal pausa
+	
+	move $ra, $t0
+	
+	jr $ra
+	
+	error_301:
+		
+		li $v0, 4
+		la $a0, mensaje_error_301
+		syscall
+		
+		move $t0, $ra
+	
+		jal pausa
+	
+		move $ra, $t0
+		
+		jr $ra
 
 delcategory:
 
@@ -391,13 +441,17 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 	jr $ra				#regreso a instruccion luego de jal en main	
 										
 	primer_nodo:
-
+		
 		sw $0, ($v0)		#guardo 0 representando NULL como nodo anterior en la primera word
 		sw $0, 4($v0)#lo seteo a null, luego se llenara con un objeto o no#posiblemente se borre		#guardo en la segunda word el puntero a lista enlazada de animal o un puntero a null si estoy creando una instancia de un animal
 		sw $0, 12($v0)		#guardo 0 representando NULL como nodo siguiente en la cuarta word
 		sw $v0, ($a1)#revisar	#guardo la nueva direccion de la lista enlazada que apunta al primer nodo
 		
+		#deberia imprimir "categoria seleccionada: nombre_cat" al crear el primer nodo
+		#aca para evidenciar esto
 		sw $v0, wclist		#seteo la categoria seleccionada al primer nodo
+		#ACA VER ESTO
+		
 		
 		#test imprimo la palabra contenida en en nodo como dato, en la direccion 8($v0)
 		move $t7, $v0
