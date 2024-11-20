@@ -357,14 +357,51 @@ listcategories:
 
 delcategory:
 
-li $v0, 4
-la $a0, mensaje_operacion
-syscall
+	li $v0, 4
+	la $a0, mensaje_operacion
+	syscall
 
-la $a0, mensaje_test_5
-syscall
+	la $a0, mensaje_test_5
+	syscall
 
-jr $ra
+	lw $t0, wclist			#cargo la dir del nodo seleccionado
+	
+	#if $t0 == NULL entonces error 401, no hay categorias cargadas
+	beqz $t0, error_401		#si el nodo es nulo, entonces no hay categorias cargadas
+	
+	#if 4($t0) not null, entonces free 4($t0), esto es una lista enlazada doble circular, asique hay que recorrer toda la lista y liberar cada nodo, podria hacerlo de manera recursiva con un llamado a esta misma funcion, en caso de que sea posible, o un llamado a delobject que se define despues
+	#if 8($t0) not null entonces free 8($t0), esto es un nodo que contiene el nombre de la categoria cargado
+	
+	#if 12($t0) == null entonces free $t0, es el unico nodo que hay, se actualizan cclist y wclist en null
+	
+	#if 12($t0) != null entonces:
+	#if cclist == wclist quiere decir que estoy eliminando el primer nodo, entonces actualizo cclist = 12($t0)
+	#paso la lista seleccionada al siguiente nodo wclist = 12($t0)
+	#ahora deberia hacer:
+	#wclist.anterior == ($t0) (==$t0.anterior)
+	#$t0.anterior.siguiente == wclist
+	#($t0) = null
+	#4($t0) = null
+	#8($t0) = null
+	#12($t0) = null
+	#free($t0)
+
+	jr $ra
+	
+	error_401:
+	
+		li $v0, 4
+		la $a0, mensaje_error_401
+		syscall
+		
+		move $t0, $ra
+	
+		jal pausa
+	
+		move $ra, $t0
+		
+		jr $ra
+	
 
 newobject:
 
