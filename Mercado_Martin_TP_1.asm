@@ -177,7 +177,26 @@ newcaterogy:
 
 	move $ra, $s7			#restauro la direccion de retorno a la llamada de esta funcion
 
-	#printf se ha seleccionado la categoria tal
+	lw $t0, numero_categorias
+
+	bne $t0, 1, no_es_primer_categoria
+
+	#si es la unica categoria, entonces imprimo que es la categoria seleccionada
+
+	lw $t0, wclist
+	
+	li $v0, 4
+	
+	la $a0, selCat
+	syscall
+	
+	lw $a0, 8($t0)
+	syscall
+	
+	la $a0, return
+	syscall
+
+	no_es_primer_categoria:
 
 	jr $ra
 
@@ -370,9 +389,75 @@ delcategory:
 	beqz $t0, error_401		#si el nodo es nulo, entonces no hay categorias cargadas
 	
 	#if 4($t0) not null, entonces free 4($t0), esto es una lista enlazada doble circular, asique hay que recorrer toda la lista y liberar cada nodo, podria hacerlo de manera recursiva con un llamado a esta misma funcion, en caso de que sea posible, o un llamado a delobject que se define despues
+	
+	lw $t1, 4($t0)
+	
+	beqz $t1, object_null
+	
+	#ESTO FALTA
+	
+	#tengo que recorrer toda la lista doble enlazada object y liberar cada nodo
+	
+	object_null:
+	
+	li $t1, 0
+	
+	sw $t1, 4($t0)		#lo seteo a 0 para que no haya ningun dato basura
+	
 	#if 8($t0) not null entonces free 8($t0), esto es un nodo que contiene el nombre de la categoria cargado
 	
+	lw $t1, 8($t0)
+	
+	beqz $t1, cat_null
+	
+	#si cat no es null, libero el nodo
+	
+	move $t7, $ra
+	move $a0, $t1
+	
+	jal sfree	#setear bien los argumentos para sfree
+	move $ra, $t7
+	
+	cat_null:
+	
+	lw $t0, wclist
+	
+	li $t1, 0
+	
+	sw $t1, 8($t0)		#lo seteo a 0 para que no haya ningun dato basura
+	
 	#if 12($t0) == null entonces free $t0, es el unico nodo que hay, se actualizan cclist y wclist en null
+	
+	lw $t1, 12($t0)
+	
+	bnez $t1, no_es_unico_nodo
+	
+	#si es el unico nodo entonces solamente free($t0) y setear ($t0), 12($t0), cclist y wclist a null,
+	
+	move $t7, $ra
+	move $a0, $t0
+	
+	jal sfree	#setear bien los argumentos para sfree
+	move $ra, $t7
+	
+	li $t1, 0
+	
+	lw $t0, wclist
+	sw $t1, ($t0)		#seteo a null el puntero al anterior
+	#sw $t1, 12($t0)#no lo puedo setear a 0 porque ya se guardo la direccion del siguiente nodo en slist		#seteo a null el puntero al siguiente
+
+	sw $0, wclist
+	sw $0, cclist
+	
+	lw $t0, numero_categorias
+	
+	addi $t0, $t0, -1
+	
+	sw $t0, numero_categorias
+
+	jr $ra
+				
+	no_es_unico_nodo:
 	
 	#if 12($t0) != null entonces:
 	#if cclist == wclist quiere decir que estoy eliminando el primer nodo, entonces actualizo cclist = 12($t0)
@@ -385,6 +470,8 @@ delcategory:
 	#8($t0) = null
 	#12($t0) = null
 	#free($t0)
+
+	#restar 1 a numero_categorias
 
 	jr $ra
 	
@@ -437,7 +524,7 @@ syscall
 jr $ra
 
 insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a insertar, $a1 debe contener el puntero a la lista y en $a2 iria el puntero al objeto, aunque probablemente lo saque ya que esa funcion la cumpliria newobject
-		
+			
 	move $s6, $ra			#preservo la direccion de retorno antes de saltar a otra funcion
 	move $s5, $a0			#preservo el valor de $a0 que es un argumento de la funcion y puede ser modificado por smalloc
 	
@@ -445,10 +532,10 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 	
 	move $ra, $s6			#restauro la direccion de retorno a la llamada de esta funcion
 	move $a0, $s5			#restauro el valor de $a0
-		
+
 	sw $a0, 8($v0)			#guardo el nombre de la categoria en la tercera word del bloque de memoria asignado
 	lw $t1, ($a1)	#revisar	#cargo en $t1 la direccion al primer nodo de la lista
-	
+
 	beq $t1, $0, primer_nodo	#si la direccion es 0, es decir, null, es el primer nodo esto funciona como un if(nodo == null)
 	
 	lw $t2, 12($t1)			#tengo que ver si el primer nodo apunta a null
@@ -468,11 +555,11 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 	sw $v0, ($t1)			#guardo como anterior del primer nodo al nuevo ultimo nodo
 	
 	#test imprimo la palabra contenida en en nodo como dato, en la direccion 8($v0)
-	move $t7, $v0
-	li $v0, 4
-	lw $a0, 8($t7)
-	syscall
-	move $v0, $t7
+	#move $t7, $v0
+	#li $v0, 4
+	#lw $a0, 8($t7)
+	#syscall
+	#move $v0, $t7
 	#borrar test luego
 	
 	jr $ra				#regreso a instruccion luego de jal en main	
@@ -491,11 +578,11 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 		
 		
 		#test imprimo la palabra contenida en en nodo como dato, en la direccion 8($v0)
-		move $t7, $v0
-		li $v0, 4
-		lw $a0, 8($t7)
-		syscall
-		move $v0, $t7
+		#move $t7, $v0
+		#li $v0, 4
+		#lw $a0, 8($t7)
+		#syscall
+		#move $v0, $t7
 		#borrar test luego
 		
 		jr $ra			#regreso a instruccion luego de jal en main
@@ -555,9 +642,9 @@ recibir_nombre_categoria:
 	sw $t0, numero_categorias
 	
 	#test imprimo la palabra contenida en $t7
-	li $v0, 4
-	move $a0, $t7
-	syscall
+	#li $v0, 4
+	#move $a0, $t7
+	#syscall
 	#borrar test luego
 	
 	move $v0, $t7	#pongo la direccion en $v0, el retorno de la funcion
