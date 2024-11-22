@@ -320,7 +320,7 @@ prevcategory:
 	jr $ra
 
 listcategories:
-
+	#aca hay un error, si cargo categorias y luego las borro y trato de listar una lista vacia, en vez de ir al error, explota
 	li $v0, 4
 	la $a0, mensaje_operacion		#printf operacion selecionada
 	syscall
@@ -420,60 +420,87 @@ delcategory:
 	
 	cat_null:
 	
-	lw $t0, wclist
+		lw $t0, wclist
 	
-	li $t1, 0
+		li $t1, 0
 	
-	sw $t1, 8($t0)		#lo seteo a 0 para que no haya ningun dato basura
+		sw $t1, 8($t0)		#lo seteo a 0 para que no haya ningun dato basura
 	
-	#if 12($t0) == null entonces free $t0, es el unico nodo que hay, se actualizan cclist y wclist en null
+		#if 12($t0) == null entonces free $t0, es el unico nodo que hay, se actualizan cclist y wclist en null
 	
-	lw $t1, 12($t0)
+		lw $t1, 12($t0)
 	
-	bnez $t1, no_es_unico_nodo
-	
+		bnez $t1, no_es_unico_nodo
+		
+		#ACA CONTINUAR TESTEO PASO A PASO -----------------
+		
+		
 	#si es el unico nodo entonces solamente free($t0) y setear ($t0), 12($t0), cclist y wclist a null,
 	
-	move $t7, $ra
-	move $a0, $t0
+		move $t7, $ra
+		move $a0, $t0
 	
-	jal sfree	#setear bien los argumentos para sfree
-	move $ra, $t7
+		jal sfree	#setear bien los argumentos para sfree
+		move $ra, $t7
 	
-	li $t1, 0
+		li $t1, 0
 	
-	lw $t0, wclist
-	sw $t1, ($t0)		#seteo a null el puntero al anterior
-	#sw $t1, 12($t0)#no lo puedo setear a 0 porque ya se guardo la direccion del siguiente nodo en slist		#seteo a null el puntero al siguiente
+		lw $t0, wclist
+		sw $t1, ($t0)		#seteo a null el puntero al anterior
+		#sw $t1, 12($t0)#no lo puedo setear a 0 porque ya se guardo la direccion del siguiente nodo en slist		#seteo a null el puntero al siguiente
 
-	sw $0, wclist
-	sw $0, cclist
+		sw $0, wclist
+		sw $0, cclist
 	
-	lw $t0, numero_categorias
+		lw $t0, numero_categorias
 	
-	addi $t0, $t0, -1
+		addi $t0, $t0, -1
 	
-	sw $t0, numero_categorias
+		sw $t0, numero_categorias
 
-	jr $ra
-				
+		jr $ra
+					
 	no_es_unico_nodo:
 	
-	#if 12($t0) != null entonces:
+	#en t1 tengo 12($t0), la direccion del siguiente nodo
+	#en t0 tengo wclist
+	
+		lw $t2, cclist
 	#if cclist == wclist quiere decir que estoy eliminando el primer nodo, entonces actualizo cclist = 12($t0)
-	#paso la lista seleccionada al siguiente nodo wclist = 12($t0)
-	#ahora deberia hacer:
-	#wclist.anterior == ($t0) (==$t0.anterior)
-	#$t0.anterior.siguiente == wclist
-	#($t0) = null
-	#4($t0) = null
-	#8($t0) = null
-	#12($t0) = null
-	#free($t0)
+		bne $t2, $t0, no_elimino_primer_nodo	#branch si cclist es distinto a wclist, y si son iguales entonces la cabecera de la lista la reasigno
+
+		sw $t1, cclist		#reasigno el primer nodo de la lista al siguiente
+	
+	no_elimino_primer_nodo:
+	
+		sw $t1, wclist
+		
+		#en $t0 tengo el nodo a eliminar, en $t1 tengo el nuevo primer nodo
+		
+		lw $t2, ($t0)
+		
+		sw $t2, ($t1)		#el anterior del nuevo primer nodo debe ser igual al anterior del viejo primer nodo	
+	
+		lw $t2, ($t0)		#cargo en t2 el anterior del viejo primer nodo
+	
+		sw $t1, 12($t2)		#guardo en el siguiente del anterior del viejo primer nodo al nuevo primer nodo
+					#el siguiente del anterior del anterior primer nodo debe ser el nuevo primer nodo
+		
+	
+		#($t0) = null
+		#4($t0) = null
+		#8($t0) = null
+		#free($t0)
 
 	#restar 1 a numero_categorias
-
-	jr $ra
+		
+		lw $t2, numero_categorias
+		addi $t2, $t2, -1
+		sw $t2, numero_categorias
+		
+		#imprimir que categoria esta seleccionada ahora
+		
+		jr $ra
 	
 	error_401:
 	
