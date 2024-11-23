@@ -384,6 +384,7 @@ delcategory:
 	syscall
 
 	lw $t0, wclist			#cargo la dir del nodo seleccionado
+	lw $t3, numero_categorias
 	
 	#if $t0 == NULL entonces error 401, no hay categorias cargadas
 	beqz $t0, error_401		#si el nodo es nulo, entonces no hay categorias cargadas
@@ -434,8 +435,8 @@ delcategory:
 		
 		#ACA CONTINUAR TESTEO PASO A PASO -----------------
 		
-		
-	#si es el unico nodo entonces solamente free($t0) y setear ($t0), 12($t0), cclist y wclist a null,
+		#aca adentro, $t0 es el unico nodo, debe quedar vacio
+			#si es el unico nodo entonces solamente free($t0) y setear ($t0), 12($t0), cclist y wclist a null,
 	
 		move $t7, $ra
 		move $a0, $t0
@@ -450,7 +451,7 @@ delcategory:
 		#sw $t1, 12($t0)#no lo puedo setear a 0 porque ya se guardo la direccion del siguiente nodo en slist		#seteo a null el puntero al siguiente
 
 		sw $0, wclist
-		sw $0, cclist
+		sw $0, cclist	#como borre el unico nodo, cclist y wclist son null
 	
 		lw $t0, numero_categorias
 	
@@ -460,7 +461,59 @@ delcategory:
 
 		jr $ra
 					
-	no_es_unico_nodo:
+	no_es_unico_nodo:	#hasta aca esta todo "chequeado" 
+	
+	lw $t3, numero_categorias
+	
+	bgt $t3, 2, hay_mas_de_2_categorias
+	
+	#aca tengo que chequear si solo hay 2 nodos, en cuyo caso asigno null a anterior y a siguiente del unico nodo que queda
+	
+	#en t0 tengo el nodo a borrar, wclist
+	
+	#en t1 tengo el siguiente nodo al que borro
+	
+	#if wclist == cclist entonces estoy borrando el primer nodo y debo asignar cclist al siguiente
+	
+	lw $t2, cclist
+	
+	bne $t0, $t2, no_borro_primer_nodo
+	
+	#borro el primer nodo de clist	
+	sw $t1, cclist		#actualizo el puntero que ahora apunta al otro nodo
+	sw $t1, wclist
+	
+	sw $0, ($t1)		#anterior es null
+	sw $0, 12($t1)		#siguiente es null
+	
+	move $t7, $ra
+	move $a0, $t0
+	
+	jal sfree	#libero el nodo
+	move $ra, $t7
+	
+	jr $ra
+	
+	no_borro_primer_nodo:
+	
+	#de lo contrario, no actualizo el puntero cclist
+	
+	#asigno null al anterior y al siguiente
+	
+	move $t7, $ra
+	move $a0, $t0
+	
+	jal sfree	#libero el nodo
+	move $ra, $t7
+	
+	sw $t1, wclist
+	
+	sw $0, ($t1)
+	sw $0, 12($t1)
+	
+	jr $ra
+	
+	hay_mas_de_2_categorias:
 	
 	#en t1 tengo 12($t0), la direccion del siguiente nodo
 	#en t0 tengo wclist
@@ -481,16 +534,17 @@ delcategory:
 		
 		sw $t2, ($t1)		#el anterior del nuevo primer nodo debe ser igual al anterior del viejo primer nodo	
 	
-		lw $t2, ($t0)		#cargo en t2 el anterior del viejo primer nodo
+		#lw $t2, ($t0) #repetido?		#cargo en t2 el anterior del viejo primer nodo
 	
 		sw $t1, 12($t2)		#guardo en el siguiente del anterior del viejo primer nodo al nuevo primer nodo
 					#el siguiente del anterior del anterior primer nodo debe ser el nuevo primer nodo
-		
+		move $t7, $ra
+		move $a0, $t0
 	
-		#($t0) = null
-		#4($t0) = null
-		#8($t0) = null
-		#free($t0)
+		jal sfree	#libero el nodo
+		move $ra, $t7
+		
+		sw $0, ($t0)
 
 	#restar 1 a numero_categorias
 		
@@ -710,6 +764,11 @@ smalloc:	#devuelve en $v0 la direccion de la memoria asignada
 		jr $ra
 
 sfree: #debe contener en $a0 la direccion del nodo que se va a "liberar"
+	sw $0, ($a0)
+	sw $0, 4($a0)
+	sw $0, 8($a0)
+	sw $0, 12($a0)
+	
 	lw $t0, slist		#cargo el valor guardado en slist, es decir, la direccion del primer nodo de la lista
 	sw $t0, 12($a0)		#pongo la direccion del anterior primer nodo de la lista en la ultima palabra del nodo a liberar, es decir, estoy insertando al frente de la lista el nodo que se libera
 	sw $a0, slist 		#actualizo la direccion de la lista para que apunte al nuevo primer nodo
