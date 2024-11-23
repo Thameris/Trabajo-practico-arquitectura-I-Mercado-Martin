@@ -71,9 +71,9 @@ catName:	.asciiz "Ingrese el nombre de una categoria: "
 
 selCat: 	.asciiz "Se ha seleccionado la categoria: "
 
-idObj: 		.asciiz "\nIngrese el ID del objeto a eliminar: "
+idObj: 		.asciiz "Ingrese el ID del objeto a eliminar: "
 
-objName: 	.asciiz "\nIngrese el nombre de un objeto: "
+objName: 	.asciiz "Ingrese el nombre de un objeto: "
 
 success: 	.asciiz "La operación se realizo con exito\n\n"
 
@@ -147,11 +147,13 @@ main:
 		la $a0, mensaje_error_101
 		syscall
 		
-		move $t0, $ra		#preservo dir retorno
-	
+		addiu $sp, $sp, -4
+		sw $ra, 4($sp)
+		
 		jal pausa		
 	
-		move $ra, $t0		#restauro dir retorno
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
 		
 		j main
 		
@@ -167,16 +169,23 @@ newcaterogy:
 	la $a0, mensaje_test_1
 	syscall
 
-	move $s7, $ra			#preservo la direccion de retorno antes de saltar a otra funcion
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
 
-	jal recibir_nombre_categoria	#recibo del usuario el nombre de la categoria
+	#mensaje ingrese nombre categoria
+	la $a0, catName
+	syscall
+
+	jal recibir_nombre		#recibo del usuario el nombre de la categoria
 
 	move $a0, $v0			#copio a $a0 el return de la funcion recibir nombre, es decir, la direccion donde esta el string ingresado por el usuario con el nombre de la categoria
 	la $a1, cclist			#seteo $a1 con la direccion a la lista circular
+	la $a2, wclist
 	jal insertar_nodo_doble_final	#a0 debe contener la direccion al nombre dato a insertar, $a1 debe contener el puntero a la lista y en $a2 iria el puntero al objeto, aunque probablemente lo saque ya que esa funcion la cumpliria newobject
 
-	move $ra, $s7			#restauro la direccion de retorno a la llamada de esta funcion
-
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
 	lw $t0, numero_categorias
 
 	bne $t0, 1, no_es_primer_categoria
@@ -232,11 +241,13 @@ nextcategory:
 	la $a0, return		#printf \n\n
 	syscall
 
-	move $t0, $ra		#preservo dir retorno
-	
-	jal pausa		
-	
-	move $ra, $t0		#restauro dir retorno
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+		
+	jal pausa
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 
 	jr $ra
 	
@@ -246,11 +257,13 @@ nextcategory:
 	la $a0, mensaje_error_201	#printf error 201 no hay ninguna categoria
 	syscall
 	
-	move $t0, $ra
-	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+			
 	jal pausa
-	
-	move $ra, $t0
+			
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 	
 	jr $ra
 	
@@ -271,11 +284,13 @@ nextcategory:
 	la $a0, return		#printf \n\n
 	syscall
 	
-	move $t0, $ra
-	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+		
 	jal pausa
-	
-	move $ra, $t0
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 	
 	jr $ra
 
@@ -311,11 +326,13 @@ prevcategory:
 	la $a0, return		#printf \n\n
 	syscall
 
-	move $t0, $ra		#preservo dir retorno
-	
-	jal pausa		
-	
-	move $ra, $t0		#restauro dir retorno
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+		
+	jal pausa
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 
 	jr $ra
 
@@ -352,11 +369,13 @@ listcategories:
 
 	fin_list_categories:
 
-	move $t0, $ra
-	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+		
 	jal pausa
-	
-	move $ra, $t0
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 	
 	jr $ra
 	
@@ -366,11 +385,13 @@ listcategories:
 		la $a0, mensaje_error_301
 		syscall
 		
-		move $t0, $ra
-	
+		addiu $sp, $sp, -4
+		sw $ra, 4($sp)	
+		
 		jal pausa
-	
-		move $ra, $t0
+		
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
 		
 		jr $ra
 
@@ -383,17 +404,49 @@ delcategory:
 	la $a0, mensaje_test_5
 	syscall
 
-	lw $t0, wclist			#cargo la dir del nodo seleccionado
+	lw $s0, wclist			#cargo la dir del nodo seleccionado
 	lw $t3, numero_categorias
 	
 	#if $t0 == NULL entonces error 401, no hay categorias cargadas
-	beqz $t0, error_401		#si el nodo es nulo, entonces no hay categorias cargadas
+	beqz $s0, error_401		#si el nodo es nulo, entonces no hay categorias cargadas
 	
 	#if 4($t0) not null, entonces free 4($t0), esto es una lista enlazada doble circular, asique hay que recorrer toda la lista y liberar cada nodo, podria hacerlo de manera recursiva con un llamado a esta misma funcion, en caso de que sea posible, o un llamado a delobject que se define despues
 	
-	lw $t1, 4($t0)
+	lw $t1, 4($s0)
 	
 	beqz $t1, object_null
+	
+	move $t4, $t1
+	
+	loop_delet_obj:
+	
+		addiu $sp, $sp, -4
+		sw $ra, 4($sp)
+	
+		lw $a0, 8($t4)	#free nodo.nombre
+	
+		jal sfree
+	
+		lw $s1, 12($t4)
+	
+		move $a0, $t4		#free nodo
+		
+		jal sfree
+	
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
+		
+		move $t4, $s1
+		
+		beqz $t4, fin_delet_obj
+		beq $t1, $t4, fin_delet_obj
+		
+		
+		
+		j loop_delet_obj
+		
+	fin_delet_obj:
+		
 	
 	#ESTO FALTA
 	
@@ -403,33 +456,37 @@ delcategory:
 	
 	li $t1, 0
 	
-	sw $t1, 4($t0)		#lo seteo a 0 para que no haya ningun dato basura
+	sw $t1, 4($s0)		#lo seteo a 0 para que no haya ningun dato basura
 	
 	#if 8($t0) not null entonces free 8($t0), esto es un nodo que contiene el nombre de la categoria cargado
 	
-	lw $t1, 8($t0)
+	lw $t1, 8($s0)
 	
 	beqz $t1, cat_null
 	
 	#si cat no es null, libero el nodo
 	
-	move $t7, $ra
 	move $a0, $t1
 	
-	jal sfree	#setear bien los argumentos para sfree
-	move $ra, $t7
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+		
+	jal sfree	#libero el nodo
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 	
 	cat_null:
 	
-		lw $t0, wclist
+		lw $s0, wclist
 	
 		li $t1, 0
 	
-		sw $t1, 8($t0)		#lo seteo a 0 para que no haya ningun dato basura
+		sw $t1, 8($s0)		#lo seteo a 0 para que no haya ningun dato basura
 	
 		#if 12($t0) == null entonces free $t0, es el unico nodo que hay, se actualizan cclist y wclist en null
 	
-		lw $t1, 12($t0)
+		lw $t1, 12($s0)
 	
 		bnez $t1, no_es_unico_nodo
 		
@@ -438,26 +495,31 @@ delcategory:
 		#aca adentro, $t0 es el unico nodo, debe quedar vacio
 			#si es el unico nodo entonces solamente free($t0) y setear ($t0), 12($t0), cclist y wclist a null,
 	
-		move $t7, $ra
-		move $a0, $t0
-	
-		jal sfree	#setear bien los argumentos para sfree
-		move $ra, $t7
+		
+		move $a0, $s0
+		
+		addiu $sp, $sp, -4
+		sw $ra, 4($sp)	
+		
+		jal sfree	#libero el nodo
+		
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
 	
 		li $t1, 0
 	
-		lw $t0, wclist
-		sw $t1, ($t0)		#seteo a null el puntero al anterior
+		lw $s0, wclist
+		sw $t1, ($s0)		#seteo a null el puntero al anterior
 		#sw $t1, 12($t0)#no lo puedo setear a 0 porque ya se guardo la direccion del siguiente nodo en slist		#seteo a null el puntero al siguiente
 
 		sw $0, wclist
 		sw $0, cclist	#como borre el unico nodo, cclist y wclist son null
 	
-		lw $t0, numero_categorias
+		lw $s0, numero_categorias
 	
-		addi $t0, $t0, -1
+		addi $s0, $s0, -1
 	
-		sw $t0, numero_categorias
+		sw $s0, numero_categorias
 
 		jr $ra
 					
@@ -477,7 +539,7 @@ delcategory:
 	
 	lw $t2, cclist
 	
-	bne $t0, $t2, no_borro_primer_nodo
+	bne $s0, $t2, no_borro_primer_nodo
 	
 	#borro el primer nodo de clist	
 	sw $t1, cclist		#actualizo el puntero que ahora apunta al otro nodo
@@ -486,11 +548,16 @@ delcategory:
 	sw $0, ($t1)		#anterior es null
 	sw $0, 12($t1)		#siguiente es null
 	
-	move $t7, $ra
-	move $a0, $t0
 	
+	move $a0, $s0
+	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+		
 	jal sfree	#libero el nodo
-	move $ra, $t7
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 	
 	jr $ra
 	
@@ -500,11 +567,16 @@ delcategory:
 	
 	#asigno null al anterior y al siguiente
 	
-	move $t7, $ra
-	move $a0, $t0
 	
+	move $a0, $s0
+	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+		
 	jal sfree	#libero el nodo
-	move $ra, $t7
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 	
 	sw $t1, wclist
 	
@@ -520,7 +592,7 @@ delcategory:
 	
 		lw $t2, cclist
 	#if cclist == wclist quiere decir que estoy eliminando el primer nodo, entonces actualizo cclist = 12($t0)
-		bne $t2, $t0, no_elimino_primer_nodo	#branch si cclist es distinto a wclist, y si son iguales entonces la cabecera de la lista la reasigno
+		bne $t2, $s0, no_elimino_primer_nodo	#branch si cclist es distinto a wclist, y si son iguales entonces la cabecera de la lista la reasigno
 
 		sw $t1, cclist		#reasigno el primer nodo de la lista al siguiente
 	
@@ -530,7 +602,7 @@ delcategory:
 		
 		#en $t0 tengo el nodo a eliminar, en $t1 tengo el nuevo primer nodo
 		
-		lw $t2, ($t0)
+		lw $t2, ($s0)
 		
 		sw $t2, ($t1)		#el anterior del nuevo primer nodo debe ser igual al anterior del viejo primer nodo	
 	
@@ -538,13 +610,18 @@ delcategory:
 	
 		sw $t1, 12($t2)		#guardo en el siguiente del anterior del viejo primer nodo al nuevo primer nodo
 					#el siguiente del anterior del anterior primer nodo debe ser el nuevo primer nodo
-		move $t7, $ra
-		move $a0, $t0
-	
-		jal sfree	#libero el nodo
-		move $ra, $t7
 		
-		sw $0, ($t0)
+		move $a0, $s0
+		
+		addiu $sp, $sp, -4
+		sw $ra, 4($sp)	
+		
+		jal sfree	#libero el nodo
+		
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
+		
+		sw $0, ($s0)
 
 	#restar 1 a numero_categorias
 		
@@ -562,56 +639,85 @@ delcategory:
 		la $a0, mensaje_error_401
 		syscall
 		
-		move $t0, $ra
-	
+		addiu $sp, $sp, -4
+		sw $ra, 4($sp)	
+		
 		jal pausa
-	
-		move $ra, $t0
+		
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
 		
 		jr $ra
 	
 
 newobject:
 
-li $v0, 4
-la $a0, mensaje_operacion
-syscall
+	li $v0, 4
+	la $a0, mensaje_operacion
+	syscall
 
-la $a0, mensaje_test_6
-syscall
+	la $a0, mensaje_test_6
+	syscall
+	
+	la $a0, objName
+	syscall
 
-jr $ra
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+	
+	jal recibir_nombre		#devuelve en $v0 la direccion de memoria que apunta al nombre ingresado por el usuario
+	
+	move $a0, $v0
+	
+	lw $t0, wclist			#en $a1 debe estar el puntero a la lista, es decir, 4(wclist)
+	la $a1, 4($t0)
+	li $a2, 0
+	
+	jal insertar_nodo_doble_final	#requiere en $a0 la direccion al nombre del nodo, y en $a1 la direccion del puntero a la lista
+	
+	lw $t0, wclist	
+	lw $a0, 4($t0)
+	
+	jal actualizar_ids
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+
+	jr $ra
 
 listobjects:
 
-li $v0, 4
-la $a0, mensaje_operacion
-syscall
+	li $v0, 4
+	la $a0, mensaje_operacion
+	syscall
 
-la $a0, mensaje_test_7
-syscall
+	la $a0, mensaje_test_7
+	syscall
 
-jr $ra
+	jr $ra
 
 delobject:
 
-li $v0, 4
-la $a0, mensaje_operacion
-syscall
+	li $v0, 4
+	la $a0, mensaje_operacion
+	syscall
 
-la $a0, mensaje_test_8
-syscall
+	la $a0, mensaje_test_8
+	syscall
 
-jr $ra
+	#recordar llamar a actualizar ids
+
+	jr $ra
 
 insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a insertar, $a1 debe contener el puntero a la lista y en $a2 iria el puntero al objeto, aunque probablemente lo saque ya que esa funcion la cumpliria newobject
 			
-	move $s6, $ra			#preservo la direccion de retorno antes de saltar a otra funcion
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)			#preservo la direccion de retorno antes de saltar a otra funcion
+				
 	move $s5, $a0			#preservo el valor de $a0 que es un argumento de la funcion y puede ser modificado por smalloc
 	
 	jal smalloc			#retorna en $v0 la direccion de memoria del bloque de 16 bytes asignado
-	
-	move $ra, $s6			#restauro la direccion de retorno a la llamada de esta funcion
+				
 	move $a0, $s5			#restauro el valor de $a0
 
 	sw $a0, 8($v0)			#guardo el nombre de la categoria en la tercera word del bloque de memoria asignado
@@ -634,14 +740,9 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 	sw $t1, 12($v0)			#guardo como siguiente de nuevo nodo al primer nodo
 	
 	sw $v0, ($t1)			#guardo como anterior del primer nodo al nuevo ultimo nodo
-	
-	#test imprimo la palabra contenida en en nodo como dato, en la direccion 8($v0)
-	#move $t7, $v0
-	#li $v0, 4
-	#lw $a0, 8($t7)
-	#syscall
-	#move $v0, $t7
-	#borrar test luego
+
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 	
 	jr $ra				#regreso a instruccion luego de jal en main	
 										
@@ -654,17 +755,15 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 		
 		#deberia imprimir "categoria seleccionada: nombre_cat" al crear el primer nodo
 		#aca para evidenciar esto
-		sw $v0, wclist		#seteo la categoria seleccionada al primer nodo
-		#ACA VER ESTO
 		
+		beqz $a2, no_wclist
 		
-		#test imprimo la palabra contenida en en nodo como dato, en la direccion 8($v0)
-		#move $t7, $v0
-		#li $v0, 4
-		#lw $a0, 8($t7)
-		#syscall
-		#move $v0, $t7
-		#borrar test luego
+		sw $v0, ($a2)	#chequear si anda bien		#seteo la categoria seleccionada al primer nodo
+		
+		no_wclist:
+		
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
 		
 		jr $ra			#regreso a instruccion luego de jal en main
 
@@ -685,25 +784,23 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 		move $v0, $t7
 		#borrar test luego
 		
+		lw $ra, 4($sp)
+		addiu $sp, $sp, 4
+			
 		jr $ra			#regreso a instruccion luego de jal en main
 
 	
 #fin insertar_nodo_doble_final
 
 
-recibir_nombre_categoria:
+recibir_nombre:
 	
-	move $s6, $ra			#preservo $ra
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)			#preservo $ra
 	
 	jal smalloc			#recivo en $v0 la direccion a un bloque de 16 bytes para escribir la palabra
-		
-	move $ra, $s6			#restauro $ra
+				
 	move $t7, $v0			#preservo la direccion obtenida de smalloc
-	
-	#mensaje ingrese nombre categoria
-	li $v0, 4
-	la $a0, catName
-	syscall
 	
 	li $v0, 8			#codigo para que syscall lea un string
 	li $a1, 16			#max char de lectura
@@ -722,16 +819,38 @@ recibir_nombre_categoria:
 		
 	sw $t0, numero_categorias
 	
-	#test imprimo la palabra contenida en $t7
-	#li $v0, 4
-	#move $a0, $t7
-	#syscall
-	#borrar test luego
-	
 	move $v0, $t7	#pongo la direccion en $v0, el retorno de la funcion
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
 	jr $ra		#retorno a siguiente instruccion donde se llamo esta funcion
 	
 #fin recibir_nombre_categoria:
+
+actualizar_ids:		#recibe en $a0 la direccion al primer nodo de una lista de objetos
+
+	move $t0, $a0	
+	
+	li $t1, 1
+	
+	loopp:
+	
+		sw $t1, 4($t0)
+		
+		addi $t1, $t1, 1
+		
+		lw $t0, 12($t0)
+		
+		beqz $t0, final_act_ids
+		
+		beq $t0, $a0, final_act_ids
+	
+		j loopp
+		
+	final_act_ids:
+
+	jr $ra
 
 pausa:
 	li $v0, 4
