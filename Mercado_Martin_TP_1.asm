@@ -1,26 +1,12 @@
 .data
 
-#TAREAS PENDIENTES:
-
-#1) Testear mejor
-
-#2) Arreglar comentarios
-
-#3) Reformatear registros usados, si vale la pena, cambiar los temporales por los s donde corresponda
-
-#4) Agregar mas mensajes de confirmacion de acciones y pausas donde correspondan, y arreglar el mensaje que se imprime con la segunda categoria que no deberia aparecer
-
-#5) Repasar todos los requerimientos y ver que falta implementar.
-
 #variables creadas por mi:
 
 numero_categorias: 	.word 0
 
-numero_animales: 	.word 0
-
 opcion_menu_input: 	.word 0
 
-indicador:		.asciiz "Categoria seleccionada > "
+indicador:		.asciiz "> "
 
 mensaje_operacion: 	.asciiz "Se ha seleccionado la operacion: "
 
@@ -35,6 +21,8 @@ mensaje_error_602: 	.asciiz "Error 602: no hay objetos cargados. No se pudieron 
 mensaje_error_notfound: .asciiz "Error: objeto Not Found.\nNo se pudo borrar el objeto.\n\n"
 mensaje_error_701: 	.asciiz "Error 701: no hay categorias cargadas. No se pudo borrar el objeto.\n\n"
 
+mensaje_error_nullobj:	.asciiz "Error, no hay objetos cargados.\n\n"
+
 mensaje_test_1: 	.asciiz "1\n\n"
 mensaje_test_2: 	.asciiz "2\n\n"
 mensaje_test_3: 	.asciiz "3\n\n"
@@ -46,8 +34,11 @@ mensaje_test_8: 	.asciiz "8\n\n"
 
 mensaje_pausa: 		.asciiz "Presione enter para continuar..."
 
+mensaje_cat_borrada:	.asciiz "Se ha eliminado la categoria: "
+mensaje_objt_borrado:	.asciiz "Se ha eliminado el objeto: "
+mensaje_lista_objetos:	.asciiz "Lista de los objetos cargados:\n\n"
 mensaje_lista_categorias: .asciiz "Lista de las categorias cargadas:\n\n"
-mensaje_lista_objetos: .asciiz "Lista de los objetos cargados:\n\n"
+
 
 #variables dadas:
 
@@ -57,7 +48,7 @@ cclist: 	.word 0		#puntero a la lista de categorias (fijo)
 
 wclist: 	.word 0		#puntero a la categoria seleccionada (se mueve por la lista)
 
-schedv: 	.space 32
+schedv: 	.space 32	#vector que va a contener las direcciones de las funciones que se van a ejecutar
 
 menu: 		.ascii "Colecciones de objetos categorizados\n"
 		.ascii "====================================\n"
@@ -71,8 +62,6 @@ menu: 		.ascii "Colecciones de objetos categorizados\n"
 		.ascii "8-Borrar objeto de la categoria\n"
 		.ascii "0-Salir\n"
 		.asciiz "Ingrese la opcion deseada: "
-
-error: 		.asciiz "Error: "
 
 return: 	.asciiz "\n"
 
@@ -88,6 +77,7 @@ success: 	.asciiz "La operación se realizo con exito\n\n"
 
 .text
 
+#cargo schedv con las direcciones a todas las funciones
 la $t0, newcaterogy
 la $t1, schedv
 sw $t0, ($t1)   	
@@ -115,6 +105,7 @@ sw $t0, 28($t1)
 
 main:
 	#imprimo el menu de opciones
+	
 	li $v0, 4
 	la $a0, menu
 	syscall
@@ -126,17 +117,21 @@ main:
 	sw $v0, opcion_menu_input
 	
 	#imprimo \n
+	
 	li $v0, 4
 	la $a0, return
 	syscall
 	
-	#validacion del dato
+	#validacion del dato ingresado
+	
 	lw $t0, opcion_menu_input
 	bgt $t0, 8, dato_invalido
-	blt $t0, 1, dato_invalido
+	blt $t0, 0, dato_invalido
 
 	#ejecuto la funcion aparejada a la opcion elegida
+	
 	lw $t0, opcion_menu_input      	#cargo el indice seleccionado
+	beqz $t0, fin_programa		#si la opcion seleccionada es 0 termino el programa
 	subi $t0, $t0, 1		#le resto 1 al indice, ya que mis opciones van del 0 al 7, no del 1 al 8
 	la $t1, schedv			#cargo la direccion de schedv
 	sll $t2, $t0, 2			#multiplico por 4 bytes la opcion elegida para obtener un offset en bytes de la opcion
@@ -144,9 +139,9 @@ main:
 	lw $t4, ($t3)			#cargo la direccion de la funcion seleccionada
 	jalr $t4          	 	#salto a la función usando su dirección
 
-	j main		#para testeo
+	j main				#loop principal del programa
 
-	#fin programa
+	fin_programa:
 	li $v0, 10
 	syscall
 
@@ -171,57 +166,63 @@ main:
 
 newcaterogy:
 
+	addiu $sp, $sp, -4		#preservo la direccion de retorno
+	sw $ra, 4($sp)	
+
 	li $v0, 4
-	la $a0, mensaje_operacion
+	la $a0, mensaje_operacion	#muestro la opcion seleccionada
 	syscall
 
 	la $a0, mensaje_test_1
 	syscall
 
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
-
-	#mensaje ingrese nombre categoria
-	la $a0, catName
+	la $a0, catName			#mensaje ingrese nombre categoria
 	syscall
 
 	jal recibir_nombre		#recibo del usuario el nombre de la categoria
 
+	lw $t0, numero_categorias	#actualizo el numero de categorias
+	addi $t0, $t0, 1
+	sw $t0, numero_categorias
+
 	move $a0, $v0			#copio a $a0 el return de la funcion recibir nombre, es decir, la direccion donde esta el string ingresado por el usuario con el nombre de la categoria
 	la $a1, cclist			#seteo $a1 con la direccion a la lista circular
-	la $a2, wclist
-	jal insertar_nodo_doble_final	#a0 debe contener la direccion al nombre dato a insertar, $a1 debe contener el puntero a la lista y en $a2 iria el puntero al objeto, aunque probablemente lo saque ya que esa funcion la cumpliria newobject
-
-	lw $ra, 4($sp)
-	addiu $sp, $sp, 4
+	la $a2, wclist			#seteo $a2 con la direccion a el nodo seleccionado de la lista
+	jal insertar_nodo_doble_final
 	
 	lw $t0, numero_categorias
 
-	bne $t0, 1, no_es_primer_categoria
-
-	#si es la unica categoria, entonces imprimo que es la categoria seleccionada
+	bne $t0, 1, no_es_primer_categoria	#si es la unica categoria, entonces imprimo que es la categoria seleccionada
 
 	lw $t0, wclist
 	
 	li $v0, 4
 	
 	la $a0, selCat
-	syscall
-	
+	syscall				
+		
 	lw $a0, 8($t0)
 	syscall
 	
 	la $a0, return
 	syscall
+	
+	jal pausa
 
 	no_es_primer_categoria:
+
+	lw $ra, 4($sp)			#restauro la direccion de retorno
+	addiu $sp, $sp, 4		#restauro sp
 
 	jr $ra
 
 nextcategory:
 
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)			#preservo la direccion de retorno en el stack
+
 	li $v0, 4
-	la $a0, mensaje_operacion
+	la $a0, mensaje_operacion	#muestro la opcion seleccionada
 	syscall
 
 	la $a0, mensaje_test_2
@@ -231,43 +232,35 @@ nextcategory:
 
 	beqz $t0, error_201		#si es null, la lista de categorias esta vacia
 
-	lw $t0, 12($t0)#esto			#de lo contrario accedo al siguiente nodo
+	lw $t0, 12($t0)			#de lo contrario accedo al siguiente nodo
 
 	beqz $t0, error_202		#si es null entonces solo hay 1 categoria
 
 	sw $t0, wclist			#de lo contrario hay al menos 2 categorias, cargo en $t0 la categoria siguiente
 	
-	#printf categoria seleccionada: categoria actual
-	
 	li $v0, 4
 	
-	la $a0, selCat		#printf se ha seleccionado la cat
+	la $a0, selCat			#muestro el nombre de la categoria seleccionada
 	syscall
 	
-	lw $a0, 8($t0)		#printf nombre cat
+	lw $a0, 8($t0)			
 	syscall
 	
-	la $a0, return		#printf \n\n
+	la $a0, return			
 	syscall
 
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
-		
 	jal pausa
 		
-	lw $ra, 4($sp)
-	addiu $sp, $sp, 4
+	lw $ra, 4($sp)			#restauro la direccion de retorno
+	addiu $sp, $sp, 4		#restauro el sp
 
 	jr $ra
 	
 	error_201:
 	
 	li $v0, 4
-	la $a0, mensaje_error_201	#printf error 201 no hay ninguna categoria
+	la $a0, mensaje_error_201	#error no hay ninguna categoria
 	syscall
-	
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
 			
 	jal pausa
 			
@@ -281,20 +274,17 @@ nextcategory:
 	lw $t0, wclist
 	
 	li $v0, 4
-	la $a0, mensaje_error_202	#printf error 202 solo hay una categoria
+	la $a0, mensaje_error_202	#error solo hay una categoria
 	syscall
 	
-	la $a0, selCat		#printf se ha seleccionado la cat
+	la $a0, selCat			#printf se ha seleccionado la cat
 	syscall
 	
-	lw $a0, 8($t0)		#printf nombre cat
+	lw $a0, 8($t0)			
 	syscall
 	
-	la $a0, return		#printf \n\n
+	la $a0, return		
 	syscall
-	
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
 		
 	jal pausa
 		
@@ -304,6 +294,9 @@ nextcategory:
 	jr $ra
 
 prevcategory:
+
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
 
 	li $v0, 4
 	la $a0, mensaje_operacion
@@ -322,21 +315,16 @@ prevcategory:
 
 	sw $t0, wclist			#de lo contrario hay al menos 2 categorias, cargo en $t0 la categoria anterior
 	
-	#printf categoria seleccionada: categoria actual
-	
 	li $v0, 4
 	
-	la $a0, selCat		#printf se ha seleccionado la cat
+	la $a0, selCat		#se ha seleccionado la cat
 	syscall
 	
-	lw $a0, 8($t0)		#printf nombre cat
+	lw $a0, 8($t0)		
 	syscall
 	
-	la $a0, return		#printf \n\n
-	syscall
-
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
+	la $a0, return		
+	syscall	
 		
 	jal pausa
 		
@@ -346,16 +334,19 @@ prevcategory:
 	jr $ra
 
 listcategories:
-	#aca hay un error, si cargo categorias y luego las borro y trato de listar una lista vacia, en vez de ir al error, explota
+	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)	
+	
 	li $v0, 4
-	la $a0, mensaje_operacion		#printf operacion selecionada
+	la $a0, mensaje_operacion		#operacion selecionada
 	syscall
 
-	la $a0, mensaje_test_4			#printf num op selec
+	la $a0, mensaje_test_4			
 	syscall
 
-	lw $t0, cclist		#cargo el "primer" nodo de la lista
-	lw $t1, cclist
+	lw $t0, cclist		#cargo el "primer" nodo de la lista en t0, que queda fijo
+	lw $t1, cclist		#lo vuelvo a cargar en t1 pero se va a mover por la lista
 	
 	beqz $t0, error_301
 	
@@ -364,12 +355,11 @@ listcategories:
 	syscall
 	
 	loop_lista:
-		#hacer un if que si es la cat seleccionada, wclist, imprima un > para mostrarla
 		
 		lw $t7, wclist
 		bne $t1, $t7, no_es_cat_selec
 		
-		la $a0, indicador
+		la $a0, indicador	#imprimo > en la cat seleccionada
 		syscall
 		
 		no_es_cat_selec:
@@ -378,7 +368,7 @@ listcategories:
 		syscall			#printf nombre cat en el nodo actual
 	
 		la $a0, return		
-		syscall			#printf \n
+		syscall		
 	
 		lw $t1, 12($t1)		#cargo en $t1 la dir del siguiente nodo
 		
@@ -387,9 +377,6 @@ listcategories:
 
 	fin_list_categories:
 
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
-		
 	jal pausa
 		
 	lw $ra, 4($sp)
@@ -403,9 +390,6 @@ listcategories:
 		la $a0, mensaje_error_301
 		syscall
 		
-		addiu $sp, $sp, -4
-		sw $ra, 4($sp)	
-		
 		jal pausa
 		
 		lw $ra, 4($sp)
@@ -414,6 +398,9 @@ listcategories:
 		jr $ra
 
 delcategory:
+
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
 
 	li $v0, 4
 	la $a0, mensaje_operacion
@@ -425,240 +412,226 @@ delcategory:
 	lw $s0, wclist			#cargo la dir del nodo seleccionado
 	lw $t3, numero_categorias
 	
-	#if $t0 == NULL entonces error 401, no hay categorias cargadas
-	beqz $s0, error_401		#si el nodo es nulo, entonces no hay categorias cargadas
+	beqz $s0, error_401		#si wclist es nulo, entonces no hay categorias cargadas
 	
-	#if 4($t0) not null, entonces free 4($t0), esto es una lista enlazada doble circular, asique hay que recorrer toda la lista y liberar cada nodo, podria hacerlo de manera recursiva con un llamado a esta misma funcion, en caso de que sea posible, o un llamado a delobject que se define despues
+	lw $t1, 4($s0)			#cargo en t1 la direccion del primer objeto de la lista enlazada doble de objetos
 	
-	lw $t1, 4($s0)
-	
-	beqz $t1, object_null
+	beqz $t1, object_null		#veo si es null
 	
 	move $t4, $t1
 	
-	loop_delet_obj:
+	loop_delet_obj:			#si la lista de objetos no es null, la recorro y libero cada nodo
 	
-		addiu $sp, $sp, -4
-		sw $ra, 4($sp)
+		lw $a0, 8($t4)			#cargo en a0 el nombre del nodo
 	
-		lw $a0, 8($t4)	#free nodo.nombre
+		jal sfree			#free nombre del nodo
 	
-		jal sfree
+		lw $s1, 12($t4)			#cargo en s1 el siguiente nodo
 	
-		lw $s1, 12($t4)
-	
-		move $a0, $t4		#free nodo
+		move $a0, $t4			#cargo en a0 el nodo a eliminar
 		
-		jal sfree
-	
-		lw $ra, 4($sp)
-		addiu $sp, $sp, 4
+		jal sfree			#free nodo
 		
-		move $t4, $s1
+		move $t4, $s1			#cargo en t4 el siguiente nodo
 		
-		beqz $t4, fin_delet_obj
-		beq $t1, $t4, fin_delet_obj
-		
-		
+		beqz $t4, fin_delet_obj		#si el siguiente nodo es null, termino
+		beq $t1, $t4, fin_delet_obj	#si el siguiente nodo es donde empece, termino
 		
 		j loop_delet_obj
 		
 	fin_delet_obj:
-		
-	
-	#ESTO FALTA
-	
-	#tengo que recorrer toda la lista doble enlazada object y liberar cada nodo
 	
 	object_null:
 	
-	li $t1, 0
+	#imprimo categoria eliminada: nombre
+	addiu $sp, $sp, -8
+	sw $a0, 4($sp)
+	sw $v0, 8($sp)
 	
-	sw $t1, 4($s0)		#lo seteo a 0 para que no haya ningun dato basura
+	li $v0, 4
+	la $a0, mensaje_cat_borrada
+	syscall
+
+	lw $a0, 8($s0)			#cargo el nombre de la categoria a eliminar
+	syscall
 	
-	#if 8($t0) not null entonces free 8($t0), esto es un nodo que contiene el nombre de la categoria cargado
+	la $a0, return
+	syscall
 	
-	lw $t1, 8($s0)
+	jal pausa
 	
-	beqz $t1, cat_null
+	lw $a0, 4($sp)
+	lw $v0, 8($sp)
+	addiu $sp, $sp, 8
+	#fin impresion
 	
-	#si cat no es null, libero el nodo
+	lw $t1, 8($s0)			#cargo en t1 el nombre de la categoria
+	
+	beqz $t1, cat_null		#si el nombre de la categoria es null, no lo libero
 	
 	move $a0, $t1
-	
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
 		
-	jal sfree	#libero el nodo
-		
-	lw $ra, 4($sp)
-	addiu $sp, $sp, 4
+	jal sfree			#si cat no es null, libero el nodo
 	
 	cat_null:
 	
-		lw $s0, wclist
-	
-		li $t1, 0
-	
-		sw $t1, 8($s0)		#lo seteo a 0 para que no haya ningun dato basura
-	
-		#if 12($t0) == null entonces free $t0, es el unico nodo que hay, se actualizan cclist y wclist en null
-	
-		lw $t1, 12($s0)
-	
-		bnez $t1, no_es_unico_nodo
-		
-		#ACA CONTINUAR TESTEO PASO A PASO -----------------
-		
-		#aca adentro, $t0 es el unico nodo, debe quedar vacio
-			#si es el unico nodo entonces solamente free($t0) y setear ($t0), 12($t0), cclist y wclist a null,
-	
-		
-		move $a0, $s0
-		
-		addiu $sp, $sp, -4
-		sw $ra, 4($sp)	
-		
-		jal sfree	#libero el nodo
-		
-		lw $ra, 4($sp)
-		addiu $sp, $sp, 4
-	
-		li $t1, 0
-	
-		lw $s0, wclist
-		sw $t1, ($s0)		#seteo a null el puntero al anterior
-		#sw $t1, 12($t0)#no lo puedo setear a 0 porque ya se guardo la direccion del siguiente nodo en slist		#seteo a null el puntero al siguiente
+	lw $s0, wclist			#cargo en s0 el nodo seleccionado
 
-		sw $0, wclist
-		sw $0, cclist	#como borre el unico nodo, cclist y wclist son null
+	lw $t1, 12($s0)			#cargo en t1 el siguiente nodo al seleccionado
 	
-		lw $s0, numero_categorias
+	bnez $t1, no_es_unico_nodo	#si es null, hay solo 1 nodo
+		
+	move $a0, $s0			#muevo el nodo seleccionado a a0 para liberarlo
+		
+	jal sfree			#libero el nodo
 	
-		addi $s0, $s0, -1
+	sw $0, wclist			#como borre el unico nodo, cclist y wclist son null
+	sw $0, cclist			#como borre el unico nodo, cclist y wclist son null
 	
-		sw $s0, numero_categorias
+	lw $s0, numero_categorias
+	
+	addi $s0, $s0, -1		#actualizo el numero de categorias
+	
+	sw $s0, numero_categorias
 
-		jr $ra
-					
-	no_es_unico_nodo:	#hasta aca esta todo "chequeado" 
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+
+	jr $ra
+						
+	no_es_unico_nodo:	
 	
 	lw $t3, numero_categorias
 	
 	bgt $t3, 2, hay_mas_de_2_categorias
 	
-	#aca tengo que chequear si solo hay 2 nodos, en cuyo caso asigno null a anterior y a siguiente del unico nodo que queda
-	
-	#en t0 tengo el nodo a borrar, wclist
-	
-	#en t1 tengo el siguiente nodo al que borro
-	
-	#if wclist == cclist entonces estoy borrando el primer nodo y debo asignar cclist al siguiente
-	
 	lw $t2, cclist
 	
 	bne $s0, $t2, no_borro_primer_nodo
 	
-	#borro el primer nodo de clist	
-	sw $t1, cclist		#actualizo el puntero que ahora apunta al otro nodo
-	sw $t1, wclist
+	sw $t1, cclist		#como borro el primer nodo de clist actualizo el puntero que ahora apunta al siguiente del nodo eliminado
+	sw $t1, wclist		#actualizo el nodo seleccionado como el siguiente nodo al eliminado
 	
-	sw $0, ($t1)		#anterior es null
-	sw $0, 12($t1)		#siguiente es null
-	
+	sw $0, ($t1)		#anterior es null porque solo queda 1 categoria
+	sw $0, 12($t1)		#siguiente es null porque solo queda 1 categoria
 	
 	move $a0, $s0
-	
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
 		
-	jal sfree	#libero el nodo
+	jal sfree		#libero el nodo
+	
+	lw $s0, numero_categorias
+	
+	addi $s0, $s0, -1		#actualizo numero categorias
+	
+	sw $s0, numero_categorias
+	
+	li $v0, 4
+	la $a0, selCat
+	syscall
 		
-	lw $ra, 4($sp)
-	addiu $sp, $sp, 4
-	
-	jr $ra
-	
-	no_borro_primer_nodo:
-	
-	#de lo contrario, no actualizo el puntero cclist
-	
-	#asigno null al anterior y al siguiente
-	
-	
-	move $a0, $s0
-	
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)	
-		
-	jal sfree	#libero el nodo
-		
-	lw $ra, 4($sp)
-	addiu $sp, $sp, 4
-	
-	sw $t1, wclist
-	
-	sw $0, ($t1)
-	sw $0, 12($t1)
-	
-	jr $ra
-	
-	hay_mas_de_2_categorias:
-	
-	#en t1 tengo 12($t0), la direccion del siguiente nodo
-	#en t0 tengo wclist
-	
-		lw $t2, cclist
-	#if cclist == wclist quiere decir que estoy eliminando el primer nodo, entonces actualizo cclist = 12($t0)
-		bne $t2, $s0, no_elimino_primer_nodo	#branch si cclist es distinto a wclist, y si son iguales entonces la cabecera de la lista la reasigno
+	lw $t0, wclist
+	lw $a0, 8($t0)	
+	syscall
 
-		sw $t1, cclist		#reasigno el primer nodo de la lista al siguiente
+	la $a0, return
+	syscall		
+	
+	jal pausa				
+													
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
+	jr $ra
+	
+	no_borro_primer_nodo:	#no actualizo el puntero cclist
+	
+	move $a0, $s0
+		
+	jal sfree		#libero el nodo
+	
+	sw $t1, wclist
+	
+	sw $0, ($t1)		#anterior es null porque solo queda 1 categoria
+	sw $0, 12($t1)		#siguiente es null porque solo queda 1 categoria
+	
+	lw $s0, numero_categorias
+	
+	addi $s0, $s0, -1
+	
+	sw $s0, numero_categorias
+	
+	li $v0, 4
+	la $a0, selCat
+	syscall
+		
+	lw $t0, wclist
+	lw $a0, 8($t0)	
+	syscall
+
+	la $a0, return
+	syscall
+	
+	jal pausa				
+													
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
+	jr $ra
+	
+	hay_mas_de_2_categorias:		#en t1 tengo 12($t0), la direccion del siguiente nodo
+						#en t0 tengo wclist
+	lw $t2, cclist
+	
+	bne $t2, $s0, no_elimino_primer_nodo	#branch si cclist es distinto a wclist, y si son iguales entonces la cabecera de la lista la reasigno
+
+	sw $t1, cclist				#reasigno el primer nodo de la lista al siguiente
 	
 	no_elimino_primer_nodo:
 	
-		sw $t1, wclist
+	sw $t1, wclist				#reasigno wclist
 		
-		#en $t0 tengo el nodo a eliminar, en $t1 tengo el nuevo primer nodo
+						#en $s0 tengo el nodo a eliminar, 
+						#en $t1 tengo el nuevo primer nodo
+	lw $t2, ($s0)				#cargo en t2 el anterior del nodo a eliminar
 		
-		lw $t2, ($s0)
-		
-		sw $t2, ($t1)		#el anterior del nuevo primer nodo debe ser igual al anterior del viejo primer nodo	
+	sw $t2, ($t1)				#el anterior del nuevo primer nodo debe ser igual al anterior del viejo primer nodo	
 	
-		#lw $t2, ($t0) #repetido?		#cargo en t2 el anterior del viejo primer nodo
+	sw $t1, 12($t2)				#guardo en el siguiente del anterior del viejo primer nodo al nuevo primer nodo
+						#el siguiente del anterior del anterior primer nodo debe ser el nuevo primer nodo
+		
+	move $a0, $s0	
 	
-		sw $t1, 12($t2)		#guardo en el siguiente del anterior del viejo primer nodo al nuevo primer nodo
-					#el siguiente del anterior del anterior primer nodo debe ser el nuevo primer nodo
+	jal sfree				#libero el nodo
 		
-		move $a0, $s0
+	sw $0, ($s0)
 		
-		addiu $sp, $sp, -4
-		sw $ra, 4($sp)	
+	lw $t2, numero_categorias
+	addi $t2, $t2, -1			#actualizo numero categorias
+	sw $t2, numero_categorias
 		
-		jal sfree	#libero el nodo
+	li $v0, 4
+	la $a0, selCat	
+	syscall
 		
-		lw $ra, 4($sp)
-		addiu $sp, $sp, 4
-		
-		sw $0, ($s0)
+	lw $t0, wclist
+	lw $a0, 8($t0)				#imprimo la categoria seleccionada
+	syscall
 
-	#restar 1 a numero_categorias
+	la $a0, return
+	syscall
+	
+	jal pausa				
 		
-		lw $t2, numero_categorias
-		addi $t2, $t2, -1
-		sw $t2, numero_categorias
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 		
-		#imprimir que categoria esta seleccionada ahora
-		
-		jr $ra
+	jr $ra
 	
 	error_401:
 	
 		li $v0, 4
 		la $a0, mensaje_error_401
-		syscall
-		
-		addiu $sp, $sp, -4
-		sw $ra, 4($sp)	
+		syscall	
 		
 		jal pausa
 		
@@ -670,6 +643,12 @@ delcategory:
 
 newobject:
 
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+
+	lw $t0, wclist			
+	beqz $t0, error_nullcat		#si wclist es null, error
+
 	li $v0, 4
 	la $a0, mensaje_operacion
 	syscall
@@ -679,24 +658,33 @@ newobject:
 	
 	la $a0, objName
 	syscall
-
-	addiu $sp, $sp, -4
-	sw $ra, 4($sp)
 	
 	jal recibir_nombre		#devuelve en $v0 la direccion de memoria que apunta al nombre ingresado por el usuario
 	
-	move $a0, $v0
+	move $a0, $v0			#en a0 queda la direccion al nombre del nodo
 	
-	lw $t0, wclist			#en $a1 debe estar el puntero a la lista, es decir, 4(wclist)
-	la $a1, 4($t0)
-	li $a2, 0
+	lw $t0, wclist			
+	la $a1, 4($t0)			#en $a1 debe estar el puntero a la lista, es decir, 4(wclist)
+	li $a2, 0			#como estoy insertando un objeto, no necesito actualizar wclist, asique va seteado en 0
 	
-	jal insertar_nodo_doble_final	#requiere en $a0 la direccion al nombre del nodo, y en $a1 la direccion del puntero a la lista
-	
+	jal insertar_nodo_doble_final	#requiere en $a0 la direccion al nombre del nodo, en $a1 la direccion del puntero a la lista y en a2 iria la direccion de wclist o 0 en caso de objetos
 	lw $t0, wclist	
-	lw $a0, 4($t0)
+	lw $a0, 4($t0)			#cargo en a0 la direccion del primer nodo de la lista de objetos
 	
-	jal actualizar_ids
+	jal actualizar_ids		#requiere en a0 la direccion del primer nodo de la lista de objetos
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+
+	jr $ra
+	
+	error_nullcat:
+	
+	li $v0, 4
+	la $a0, mensaje_error_501
+	syscall
+		
+	jal pausa		
 	
 	lw $ra, 4($sp)
 	addiu $sp, $sp, 4
@@ -714,7 +702,7 @@ listobjects:
 
 	lw $t0, wclist
 	beqz $t0, no_hay_categorias
-	lw $t0, 4($t0)	#accedo a la lista de objetos
+	lw $t0, 4($t0)			#cargo en t0 el primer nodo de la lista de objetos
 	beqz $t0, no_hay_objetos
 	move $t1, $t0
 	
@@ -722,7 +710,7 @@ listobjects:
 	la $a0, mensaje_lista_objetos
 	syscall
 	
-	loop_list_obj:
+	loop_list_obj:			#recorro la lista de objetos y los imprimo
 	
 		li $v0, 4
 		lw $a0, 8($t1)
@@ -732,11 +720,20 @@ listobjects:
 		syscall
 		
 		lw $t1, 12($t1)
+		
 		beqz $t1, finloop_list_obj
 		beq $t0, $t1, finloop_list_obj
 		j loop_list_obj
 	
 	finloop_list_obj:
+
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+	
+	jal pausa
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
 
 	jr $ra
 	
@@ -746,6 +743,14 @@ listobjects:
 	la $a0, mensaje_error_601
 	syscall
 	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+	
+	jal pausa
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
 	jr $ra
 	
 	no_hay_objetos:
@@ -754,9 +759,17 @@ listobjects:
 	la $a0, mensaje_error_602
 	syscall
 	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+	
+	jal pausa
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
 	jr $ra
 
-delobject:
+delobject:	#print se ha eliminado objeto tal, pausa
 
 	addiu $sp, $sp, -4
 	sw $ra, 4($sp)
@@ -768,36 +781,35 @@ delobject:
 	la $a0, mensaje_test_8
 	syscall
 
+	lw $t0, wclist
+	beqz $t0, error_701		#si wclist es null, error de lista vacia
+	lw $t0, 4($t0)
+	beqz $t0, error_nullobj		#si lista de objetos es null, error
+
 	la $a0, idObj
 	syscall
 	
-	li $v0, 5
+	li $v0, 5			#recibo del usuario el id del objeto a eliminar
 	syscall
 	
-	move $a1, $v0
+	move $a1, $v0			#copio el id a eliminar en a1
 	
 	li $v0, 4
 	la $a0, return
 	syscall
-
-	#hacer funcion borrar nodo
 	
 	lw $t0, wclist
 	
-	beqz $t0, error_701
+	beqz $t0, error_701		#si la lista esta vacia, error 701
 	
-	la $a0, 4($t0)
+	la $a0, 4($t0)			#en $a0 va direccion a donde esta guardado puntero a lista de objetos
 	
-	#en $a0 va direccion a donde esta guardado puntero a lista
-	#en $a1 va ID a eliminar
-	jal borrar_nodo_obj
-	#recordar llamar a actualizar ids
+	jal borrar_nodo_obj		#a0 nodo objetos a eliminar, a1 id a eliminar
 
-	#en a0 debe estar la dir al primer nodo
 	lw $t0, wclist
 	lw $a0, 4($t0)
 	
-	jal actualizar_ids
+	jal actualizar_ids		#a0 dir de lista objetos para actualizar ids
 
 	lw $ra, 4($sp)
 	addiu $sp, $sp, 4
@@ -810,9 +822,14 @@ delobject:
 	la $a0, mensaje_error_701
 	syscall
 	
+	jal pausa
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
 	jr $ra
 
-insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a insertar, $a1 debe contener el puntero a la lista y en $a2 iria el puntero al objeto, aunque probablemente lo saque ya que esa funcion la cumpliria newobject
+insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a insertar, $a1 debe contener el puntero a la lista y en $a2 la direccion donde esta guardado el nodo seleccionado, para poder actualizarlo  
 			
 	addiu $sp, $sp, -4
 	sw $ra, 4($sp)			#preservo la direccion de retorno antes de saltar a otra funcion
@@ -824,7 +841,7 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 	move $a0, $s5			#restauro el valor de $a0
 
 	sw $a0, 8($v0)			#guardo el nombre de la categoria en la tercera word del bloque de memoria asignado
-	lw $t1, ($a1)	#revisar	#cargo en $t1 la direccion al primer nodo de la lista
+	lw $t1, ($a1)			#cargo en $t1 la direccion al primer nodo de la lista
 
 	beq $t1, $0, primer_nodo	#si la direccion es 0, es decir, null, es el primer nodo esto funciona como un if(nodo == null)
 	
@@ -836,7 +853,7 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 	
 	sw $v0, 12($t3)			#siguiente del ultimo nodo anterior es nuevo nodo
 	 
-	sw $0, 4($v0)#lo seteo a null, luego se llenara con un objeto o no#posiblemente se borre, ya que esta funcion la cumpliria newobject			#guardo en la segunda word el puntero a lista enlazada de animal o un puntero a null si estoy creando una instancia de un animal
+	sw $0, 4($v0)
 	
 	sw $t3, ($v0)			#guardo el ultimo nodo anterior como anterior del nuevo nodo
 	
@@ -852,49 +869,34 @@ insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a inser
 	primer_nodo:
 		
 		sw $0, ($v0)		#guardo 0 representando NULL como nodo anterior en la primera word
-		sw $0, 4($v0)#lo seteo a null, luego se llenara con un objeto o no#posiblemente se borre		#guardo en la segunda word el puntero a lista enlazada de animal o un puntero a null si estoy creando una instancia de un animal
+		sw $0, 4($v0)		#lo seteo a null, luego se llenara con un objeto o no
 		sw $0, 12($v0)		#guardo 0 representando NULL como nodo siguiente en la cuarta word
-		sw $v0, ($a1)#revisar	#guardo la nueva direccion de la lista enlazada que apunta al primer nodo
-		
-		#deberia imprimir "categoria seleccionada: nombre_cat" al crear el primer nodo
-		#aca para evidenciar esto
+		sw $v0, ($a1)		#guardo la nueva direccion de la lista enlazada que apunta al primer nodo
 		
 		beqz $a2, no_wclist
 		
-		sw $v0, ($a2)	#chequear si anda bien		#seteo la categoria seleccionada al primer nodo
+		sw $v0, ($a2)		#seteo la categoria seleccionada al primer nodo
 		
 		no_wclist:
 		
 		lw $ra, 4($sp)
 		addiu $sp, $sp, 4
 		
-		jr $ra			#regreso a instruccion luego de jal en main
+		jr $ra			
 
 	segundo_nodo:
 		
 		sw $t1, ($v0)		#guardo la direccion del primer nodo como nodo anterior en la primera word
-		sw $0, 4($v0)#lo seteo a null, luego se llenara con un objeto o no#posiblemente se borre		#guardo en la segunda word el puntero a lista enlazada de animal o un puntero a null si estoy creando una instancia de un animal
+		sw $0, 4($v0)		#lo seteo a null, luego se llenara con un objeto o no
 		sw $t1, 12($v0)		#guardo la direccion del primer nodo como nodo siguiente en la cuarta word
 		
 		sw $v0, ($t1)
 		sw $v0, 12($t1)
 		
-		#test imprimo la palabra contenida en en nodo como dato, en la direccion 8($v0)
-		move $t7, $v0
-		li $v0, 4
-		lw $a0, 8($t7)
-		syscall
-		move $v0, $t7
-		#borrar test luego
-		
 		lw $ra, 4($sp)
 		addiu $sp, $sp, 4
 			
-		jr $ra			#regreso a instruccion luego de jal en main
-
-	
-#fin insertar_nodo_doble_final
-
+		jr $ra		
 
 recibir_nombre:
 	
@@ -914,22 +916,12 @@ recibir_nombre:
 	la $a0, return
 	syscall
 	
-	#aumento en 1 el numero de categorias
-		
-	lw $t0, numero_categorias
-		
-	addi $t0, $t0, 1
-		
-	sw $t0, numero_categorias
-	
-	move $v0, $t7	#pongo la direccion en $v0, el retorno de la funcion
+	move $v0, $t7			#pongo la direccion en $v0, el retorno de la funcion
 	
 	lw $ra, 4($sp)
 	addiu $sp, $sp, 4
 	
-	jr $ra		#retorno a siguiente instruccion donde se llamo esta funcion
-	
-#fin recibir_nombre_categoria:
+	jr $ra		
 
 actualizar_ids:		#recibe en $a0 la direccion al primer nodo de una lista de objetos
 
@@ -962,7 +954,7 @@ pausa:
 	la $a0, mensaje_pausa
 	syscall
 	
-	li $v0, 12
+	li $v0, 12		#recibe un char del usuario, sirve para pausar la ejecucion del programa hasta que se aprete enter o se tipee una letra. principalmente para mejorar la visualizacion del texto para el usuario
 	syscall
 	
 	li $v0, 4
@@ -972,6 +964,10 @@ pausa:
 	jr $ra
 	
 borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de objetos, recibo en $a1 el ID del objeto a borrar
+	
+	lw $t0, ($a0)
+	
+	beqz $t0, error_nullobj
 	
 	move $s7, $a0		#cargo en s7 la direccion de donde esta guardado el puntero a la lista para poder modificarlo
 	
@@ -989,19 +985,13 @@ borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de obje
 		beqz $t0, not_found
 		beq $t0, $s0, not_found
 		
-		#lw $t1, 4($t0)
-		
-		#beq $t1, 1, not_found		#si doy una vuelta completa y vuelvo a id ==1 entonces notfound
-		
 		j looop
 	
 	finlooop:
-		move $s0, $t0
+		move $s0, $t0		#en s0 tengo la direccion al nodo a elimimnar
 	
 	addiu $sp, $sp, -4
 	sw $ra, 4($sp)
-
-	#tengo que liberar el nombre del nodo primero
 	
 	move $a0, $s0
 	
@@ -1011,6 +1001,28 @@ borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de obje
 	
 	beqz $a0, nombre_esnull
 	
+	#imprimo categoria eliminada: nombre
+	addiu $sp, $sp, -8
+	sw $a0, 4($sp)
+	sw $v0, 8($sp)
+	
+	li $v0, 4
+	la $a0, mensaje_objt_borrado
+	syscall
+
+	lw $a0, 8($s0)			#cargo el nombre de la categoria a eliminar
+	syscall
+	
+	la $a0, return
+	syscall
+	
+	jal pausa
+	
+	lw $a0, 4($sp)
+	lw $v0, 8($sp)
+	addiu $sp, $sp, 8
+	#fin impresion
+	
 	jal sfree
 	
 	nombre_esnull:
@@ -1018,8 +1030,6 @@ borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de obje
 	lw $a0, 12($s0)
 	
 	beqz $a0, unico_nodo		#si el nodo no es null y si el siguiente es null, es porque es el unico nodo
-	
-	#luego tengo que cablear el anterior al nodo con el siguiente al nodo
 	
 	lw $t0, ($s0)		#cargo en t0 la direccion del nodo anterior al que voy a borrar
 	lw $t1, 12($s0)		#cargo en t1 la direccion del nomo siguiente al que voy a borrar
@@ -1037,10 +1047,8 @@ borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de obje
 	sw $t1, 12($t0)		#el siguiente del anterior es el siguiente del nodo a borrar
 	sw $t0, ($t1)		#el anterior del siguiente al que borro es el anterior del nodo a borrar
 	
-	#luego libero el nodo
-	
 	move $a0, $s0
-	jal sfree
+	jal sfree		#libero el nodo
 	
 	nodo_esnull:
 	lw $ra, 4($sp)
@@ -1054,7 +1062,7 @@ borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de obje
 	
 	jal sfree
 	
-	sw $0, ($s7)#corregir que guarde 0 en el lugar que corresponde		#como borre el unico nodo, seteo a null
+	sw $0, ($s7)		#como borre el unico nodo, seteo a null
 		
 	lw $ra, 4($sp)
 	addiu $sp, $sp, 4
@@ -1081,6 +1089,21 @@ borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de obje
 	la $a0, mensaje_error_notfound
 	syscall
 	
+	jal pausa
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
+	jr $ra
+	
+	error_nullobj:
+	
+	li $v0, 4
+	la $a0, mensaje_error_nullobj
+	syscall
+	
+	jal pausa
+
 	lw $ra, 4($sp)
 	addiu $sp, $sp, 4
 	
@@ -1111,3 +1134,4 @@ sfree: #debe contener en $a0 la direccion del nodo que se va a "liberar"
 	sw $t0, 12($a0)		#pongo la direccion del anterior primer nodo de la lista en la ultima palabra del nodo a liberar, es decir, estoy insertando al frente de la lista el nodo que se libera
 	sw $a0, slist 		#actualizo la direccion de la lista para que apunte al nuevo primer nodo
 	jr $ra
+
