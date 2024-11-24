@@ -211,6 +211,12 @@ newcaterogy:
 
 	no_es_primer_categoria:
 
+	li $v0, 4
+	la $a0, success
+	syscall
+	
+	jal pausa
+
 	lw $ra, 4($sp)			#restauro la direccion de retorno
 	addiu $sp, $sp, 4		#restauro sp
 
@@ -672,6 +678,12 @@ newobject:
 	lw $a0, 4($t0)			#cargo en a0 la direccion del primer nodo de la lista de objetos
 	
 	jal actualizar_ids		#requiere en a0 la direccion del primer nodo de la lista de objetos
+	
+	li $v0, 4
+	la $a0, success
+	syscall
+	
+	jal pausa
 	
 	lw $ra, 4($sp)
 	addiu $sp, $sp, 4
