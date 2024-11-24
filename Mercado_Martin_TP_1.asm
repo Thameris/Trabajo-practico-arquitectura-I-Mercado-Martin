@@ -2,9 +2,15 @@
 
 #TAREAS PENDIENTES:
 
-#1) Buscar todas las llamadas a funcion dentro de otra funcion y en vez de 
-#preservar $ra en un registro, preservarlo en el stack para asegurarme
-#de que no se pierde porque alguna funcion modifique el registro
+#1) Testear mejor
+
+#2) Arreglar comentarios
+
+#3) Reformatear registros usados, si vale la pena, cambiar los temporales por los s donde corresponda
+
+#4) Agregar mas mensajes de confirmacion de acciones y pausas donde correspondan, y arreglar el mensaje que se imprime con la segunda categoria que no deberia aparecer
+
+#5) Repasar todos los requerimientos y ver que falta implementar.
 
 #variables creadas por mi:
 
@@ -13,6 +19,8 @@ numero_categorias: 	.word 0
 numero_animales: 	.word 0
 
 opcion_menu_input: 	.word 0
+
+indicador:		.asciiz "Categoria seleccionada > "
 
 mensaje_operacion: 	.asciiz "Se ha seleccionado la operacion: "
 
@@ -356,7 +364,16 @@ listcategories:
 	syscall
 	
 	loop_lista:
-	
+		#hacer un if que si es la cat seleccionada, wclist, imprima un > para mostrarla
+		
+		lw $t7, wclist
+		bne $t1, $t7, no_es_cat_selec
+		
+		la $a0, indicador
+		syscall
+		
+		no_es_cat_selec:
+		
 		lw $a0, 8($t1)		#cargo el nombre de la categoria guardado en el nodo
 		syscall			#printf nombre cat en el nodo actual
 	
@@ -1094,4 +1111,3 @@ sfree: #debe contener en $a0 la direccion del nodo que se va a "liberar"
 	sw $t0, 12($a0)		#pongo la direccion del anterior primer nodo de la lista en la ultima palabra del nodo a liberar, es decir, estoy insertando al frente de la lista el nodo que se libera
 	sw $a0, slist 		#actualizo la direccion de la lista para que apunte al nuevo primer nodo
 	jr $ra
-
