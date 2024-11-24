@@ -39,6 +39,7 @@ mensaje_test_8: 	.asciiz "8\n\n"
 mensaje_pausa: 		.asciiz "Presione enter para continuar..."
 
 mensaje_lista_categorias: .asciiz "Lista de las categorias cargadas:\n\n"
+mensaje_lista_objetos: .asciiz "Lista de los objetos cargados:\n\n"
 
 #variables dadas:
 
@@ -694,9 +695,54 @@ listobjects:
 	la $a0, mensaje_test_7
 	syscall
 
+	lw $t0, wclist
+	beqz $t0, no_hay_categorias
+	lw $t0, 4($t0)	#accedo a la lista de objetos
+	beqz $t0, no_hay_objetos
+	move $t1, $t0
+	
+	li $v0, 4
+	la $a0, mensaje_lista_objetos
+	syscall
+	
+	loop_list_obj:
+	
+		li $v0, 4
+		lw $a0, 8($t1)
+		syscall
+		
+		la $a0, return
+		syscall
+		
+		lw $t1, 12($t1)
+		beqz $t1, finloop_list_obj
+		beq $t0, $t1, finloop_list_obj
+		j loop_list_obj
+	
+	finloop_list_obj:
+
+	jr $ra
+	
+	no_hay_categorias:
+	
+	li $v0, 4
+	la $a0, mensaje_error_601
+	syscall
+	
+	jr $ra
+	
+	no_hay_objetos:
+	
+	li $v0, 4
+	la $a0, mensaje_error_602
+	syscall
+	
 	jr $ra
 
 delobject:
+
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
 
 	li $v0, 4
 	la $a0, mensaje_operacion
@@ -705,8 +751,48 @@ delobject:
 	la $a0, mensaje_test_8
 	syscall
 
+	la $a0, idObj
+	syscall
+	
+	li $v0, 5
+	syscall
+	
+	move $a1, $v0
+	
+	li $v0, 4
+	la $a0, return
+	syscall
+
+	#hacer funcion borrar nodo
+	
+	lw $t0, wclist
+	
+	beqz $t0, error_701
+	
+	la $a0, 4($t0)
+	
+	#en $a0 va direccion a donde esta guardado puntero a lista
+	#en $a1 va ID a eliminar
+	jal borrar_nodo_obj
 	#recordar llamar a actualizar ids
 
+	#en a0 debe estar la dir al primer nodo
+	lw $t0, wclist
+	lw $a0, 4($t0)
+	
+	jal actualizar_ids
+
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+
+	jr $ra
+	
+	error_701:
+	
+	li $v0, 4
+	la $a0, mensaje_error_701
+	syscall
+	
 	jr $ra
 
 insertar_nodo_doble_final: #a0 debe contener la direccion al nombre dato a insertar, $a1 debe contener el puntero a la lista y en $a2 iria el puntero al objeto, aunque probablemente lo saque ya que esa funcion la cumpliria newobject
@@ -830,6 +916,8 @@ recibir_nombre:
 
 actualizar_ids:		#recibe en $a0 la direccion al primer nodo de una lista de objetos
 
+	beqz $a0, final_act_ids
+
 	move $t0, $a0	
 	
 	li $t1, 1
@@ -866,6 +954,120 @@ pausa:
 	
 	jr $ra
 	
+borrar_nodo_obj:	#recivo en $a0 la direccion del primer nodo de la lista de objetos, recibo en $a1 el ID del objeto a borrar
+	
+	move $s7, $a0		#cargo en s7 la direccion de donde esta guardado el puntero a la lista para poder modificarlo
+	
+	lw $s0, ($a0)		#cargo en s0 el puntero al primer elemento de la lista
+	move $t0, $s0		#copio en t0 el puntero al primer elemento de la lista 
+	
+	looop:
+		
+		lw $t1, 4($t0)
+		
+		beq $t1, $a1, finlooop
+		
+		lw $t0, 12($t0)
+		
+		beqz $t0, not_found
+		beq $t0, $s0, not_found
+		
+		#lw $t1, 4($t0)
+		
+		#beq $t1, 1, not_found		#si doy una vuelta completa y vuelvo a id ==1 entonces notfound
+		
+		j looop
+	
+	finlooop:
+		move $s0, $t0
+	
+	addiu $sp, $sp, -4
+	sw $ra, 4($sp)
+
+	#tengo que liberar el nombre del nodo primero
+	
+	move $a0, $s0
+	
+	beqz $s0, nodo_esnull
+	
+	lw $a0, 8($s0)
+	
+	beqz $a0, nombre_esnull
+	
+	jal sfree
+	
+	nombre_esnull:
+	
+	lw $a0, 12($s0)
+	
+	beqz $a0, unico_nodo		#si el nodo no es null y si el siguiente es null, es porque es el unico nodo
+	
+	#luego tengo que cablear el anterior al nodo con el siguiente al nodo
+	
+	lw $t0, ($s0)		#cargo en t0 la direccion del nodo anterior al que voy a borrar
+	lw $t1, 12($s0)		#cargo en t1 la direccion del nomo siguiente al que voy a borrar
+	
+	lw $t3 4($s0)
+	
+	bne $t3, 1, no_borro_primero
+	
+	sw $t1, ($s7)	#aca tengo que guardarlo en el primer lugar de la lista enlazada		#actualizo el puntero a la lista como el nuevo primer nodo
+	
+	no_borro_primero:
+	
+	beq $t0, $t1, solo_dos_nodos	#si el anterior y el siguiente de un nodo son iguales, es porque solo hay 2 nodos
+	
+	sw $t1, 12($t0)		#el siguiente del anterior es el siguiente del nodo a borrar
+	sw $t0, ($t1)		#el anterior del siguiente al que borro es el anterior del nodo a borrar
+	
+	#luego libero el nodo
+	
+	move $a0, $s0
+	jal sfree
+	
+	nodo_esnull:
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
+	jr $ra
+
+	unico_nodo:
+	
+	move $a0, $s0
+	
+	jal sfree
+	
+	sw $0, ($s7)#corregir que guarde 0 en el lugar que corresponde		#como borre el unico nodo, seteo a null
+		
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
+	jr $ra
+	
+	solo_dos_nodos:
+	
+	sw $0, ($t0)
+	sw $0, 12($t0)
+	
+	move $a0, $s0
+	
+	jal sfree
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
+	jr $ra
+	
+	not_found:
+	
+	li $v0, 4
+	la $a0, mensaje_error_notfound
+	syscall
+	
+	lw $ra, 4($sp)
+	addiu $sp, $sp, 4
+	
+	jr $ra
 
 #funciones dadas:
 smalloc:	#devuelve en $v0 la direccion de la memoria asignada
